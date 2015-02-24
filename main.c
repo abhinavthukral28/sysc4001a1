@@ -7,6 +7,8 @@ struct stock
 	int value;
 };
 
+
+
 int main(int argc, char const *argv[])
 {
 	struct stock *s;
