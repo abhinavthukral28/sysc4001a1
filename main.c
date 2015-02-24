@@ -7,10 +7,10 @@ struct stock
 	int value;
 };
 
-int int main(int argc, char const *argv[])
+int main(int argc, char const *argv[])
 {
 	struct stock *s;
-	int shm = allocateSharedMemory(struct stock);
+	int shm = allocateSharedMemory(sizeof(struct stock));
 	s = mapSharedMemory(shm);
 	return 0;
 }
