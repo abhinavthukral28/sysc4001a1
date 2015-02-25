@@ -1,5 +1,8 @@
 #include "functions.h"
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
 
 //Pointers to Stocks
 struct stock *stockA;
@@ -15,10 +18,14 @@ int shmC;
 int shmD;
 int shmE;
 
+// Number of total children processes that are still alive
+int numChildrenAlive = 0;
+
 
 int main(int argc, char const *argv[])
 {
 	cleanup();
+
 	// Setup Shared Memory for Stocks
 	shmA = allocateSharedMemory(sizeof(struct stock));
 	stockA = mapSharedMemory(shmA);
@@ -50,6 +57,19 @@ int main(int argc, char const *argv[])
 	stockE -> value = 0;
 	printStock(stockE);
 
+	void catch(int);
+	signal(SIGCHLD, catch);  // Detects child termination
+	
+	createWriters();
+	createReaders();
+	
+	while(numChildrenAlive != 0)
+	{
+		printf("# of Children Alive: %d\n", numChildrenAlive);
+		printf("Parent: Sleeping for 5 second...\n");
+		sleep(5);
+	}
+
 	return 0;
 }
 
@@ -78,3 +98,69 @@ void cleanup()
 	shmctl(shmE,IPC_RMID,0);
 }
 
+createWriters()
+{
+	int i, pid;
+
+	for (i = 1; i <= 4; i++)
+	{
+		if ((pid = fork()) != 0)
+		{
+			printf("Created reader: P%d -> %d\n", numChildrenAlive, pid);
+			/* parent process pid != 0 */
+			/* wait for child to terminate */
+			numChildrenAlive++;
+		}
+		else if (pid == -1)
+		{
+			perror("Could not fork a writer process.\n");
+		}
+		else
+		{
+			/* child process pid = 0 */
+			sleep(8);
+			printf("Exited %d\n", getpid());
+			exit(1);
+
+		}
+	}
+}
+
+createReaders()
+{
+	int i, pid;
+
+	for (i = 1; i <= 3; i++)
+	{
+		if ((pid = fork()) != 0)
+		{
+			printf("Created reader: P%d -> %d\n", numChildrenAlive, pid);
+			/* parent process pid != 0 */
+			/* wait for child to terminate */
+			numChildrenAlive++;
+		}
+		else if (pid == -1)
+		{
+			perror("Could not fork a reader process.\n");
+		}
+		else
+		{
+			/* child process pid = 0 */
+			sleep(10);
+			printf("Exited %d\n", getpid());
+			exit(1);
+		}
+	}
+}
+
+void catch(int snum) {
+	int pid;
+	int status;
+
+	pid = wait(&status);
+	printf("Parent: Child Process pid=%d (%d).\n", pid, WEXITSTATUS(status));
+	
+	numChildrenAlive--;
+	
+	signal(SIGCHLD, catch);
+}
