@@ -1,2 +1,2 @@
-all: main.c shm.c
-    gcc main.c shm.c -o stock
+all: Makefile shm.c main.c semaphores.c functions.h
+	gcc main.c shm.c semaphores.c -o stock 
