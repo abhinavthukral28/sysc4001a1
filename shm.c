@@ -8,6 +8,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <sys/shm.h>
+#include "functions.h"
 
 
 int allocateSharedMemory(int n)
@@ -28,6 +29,4 @@ void* mapSharedMemory(int id)
 		return addr;
 	}
 }
-
-
 
