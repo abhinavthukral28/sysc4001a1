@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <time.h>
+#include <sys/timeb.h>
 
 //Pointers to Stocks
 struct stock *stockA;
@@ -19,15 +19,13 @@ int shmC;
 int shmD;
 int shmE;
 
-// Number of total children processes that are still alive
+// Total Number of Active Child Processes
 int numChildrenAlive = 0;
-
-// Setup Semaphores Sets for Writer/Reader Processes
+struct stock *readerStockList[3][3];
+struct stock *writerStockList[4][3];
+// Semaphores Set
 int idReaderSem;
 short readerValues[] = { 1, 2, 1, 2, 1 };
-
-// Setup for Log File
-FILE *logFile;
 
 int main(int argc, char const *argv[])
 {
@@ -38,33 +36,38 @@ int main(int argc, char const *argv[])
 	stockA = mapSharedMemory(shmA);
 	stockA -> name = 'A';
 	stockA -> value = 0.50;
+	stockA -> semvalue = 0;
 	printStock(stockA, 0);
 
 	shmB = allocateSharedMemory(sizeof(struct stock));
 	stockB = mapSharedMemory(shmB);
 	stockB -> name = 'B';
 	stockB -> value = 1.00;
+	stockB -> semvalue = 1;
 	printStock(stockB, 0);
 
 	shmC = allocateSharedMemory(sizeof(struct stock));
 	stockC = mapSharedMemory(shmC);
 	stockC -> name = 'C';
 	stockC -> value = 0.75;
+	stockC -> semvalue = 2;
 	printStock(stockC, 0);
 
 	shmD = allocateSharedMemory(sizeof(struct stock));
 	stockD = mapSharedMemory(shmD);
 	stockD -> name = 'D';
 	stockD -> value = 2.25;
+	stockD -> semvalue = 3;
 	printStock(stockD, 0);
 
 	shmE = allocateSharedMemory(sizeof(struct stock));
 	stockE = mapSharedMemory(shmE);
 	stockE -> name = 'E';
 	stockE -> value = 1.50;
+	stockE -> semvalue = 4;
 	printStock(stockE, 0);
 
-	// Creating Semaphore
+	// Creating Semaphores
 	idReaderSem = createSemaphores(5, readerValues);
 
 	// Initializing signal handler for detecting child termination
@@ -84,7 +87,6 @@ int main(int argc, char const *argv[])
 	}
 
 	// Destroy Semaphores
-	fclose(logFile);
 	deleteSemaphores(idReaderSem);
 
 	return 0;
@@ -92,27 +94,31 @@ int main(int argc, char const *argv[])
 
 void createWriters()
 {
-	int i, j, pid;
+	struct stock *writerStockList[4][3] = { { stockA, stockB }, { stockA, stockB, stockC }, { stockC, stockD, stockE }, { stockD, stockE } };
+	int i, j, k, pid;
 
 	for (i = 0; i < 4; i++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
-			printf("Created writer: W%d -> %d\n", i, pid);
-			//fprintf(logFile, "Created writer: P%d -> %d\n", numChildrenAlive, pid);
+			printf("\t\t\t\tCreated writer: W%d -> %d\n", i, pid);
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
 			perror("Could not fork a writer process.\n");
 		else /* Writer process, pid = 0 */
 		{	
-			for (j = 0; j < 20; j++)
+			for (j = 0; j < 10; j++)
 			{
-				increaseStockPrice(stockB, i);
+				for (k = 0; k < 3; k ++)
+				{
+					if (writerStockList[i][k] != NULL)
+						increaseStockPrice(writerStockList[i][k], i);
+				}
+				usleep(1800);
 			}
 
 			printf("\t\t\t\tExited Writer W%d -> %d\n", i, getpid());
-			//fprintf(logFile, "\t\t\t\tExited Writer P%d -> %d\n", i, getpid());
 			exit(1);
 		}
 	}
@@ -120,27 +126,30 @@ void createWriters()
 
 void createReaders()
 {
-	int i, j, pid;
+	struct stock *readerStockList[3][3] = { { stockA, stockB }, { stockB, stockC, stockD }, { stockD, stockE } };
+	int i, j, k, pid;
 
 	for (i = 0; i < 3; i++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
-			printf("Created reader: R%d -> %d\n", i, pid);
-			//fprintf(logFile, "Created reader: P%d -> %d\n", numChildrenAlive, pid);
+			printf("\t\t\t\tCreated reader: R%d -> %d\n", i, pid);
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
 			perror("Could not fork a reader process.\n");
 		else /* Reader process, pid = 0 */
 		{
-			for (j = 0; j < 25; j++)
+			for (j = 0; j < 10; j++)
 			{
-				readStock(stockB, i);
-				sleep(1);
+				for (k = 0; k < 3; k ++)
+				{
+					if (readerStockList[i][k] != NULL)
+						readStock(readerStockList[i][k], i);
+				}
+				usleep(2000);
 			}
 			printf("\t\t\t\tExited Reader R%d -> %d\n", i, getpid());
-			//fprintf(logFile, "\t\t\t\tExited Reader P%d -> %d\n", i, getpid());
 			exit(1);
 		}
 	}
@@ -152,21 +161,15 @@ void printStock(struct stock *s, int proc)
 	double value = s -> value;
 
 	printf("%d: Stock %c: R%d: %0.2f\n", getTime(), name, proc, value);
-	fprintf(logFile, "%d: Stock %c: R%d: %0.2f\n", getTime(), name, proc, value);
 }
 
 void readStock(struct stock *s, int proc)
 {
-	readLockSemaphore(idReaderSem, 1);
-	//printf("%d: Reader -> %d:LOCKED\n", getTime(), getpid());
-	//fprintf(logFile, "%d: Reader -> %d:LOCKED\n", getTime(), getpid());
-	sleep(1);
+	int semvalue = s -> semvalue;
 
-	printStock(stockB, proc);
-	
-	readUnlockSemaphore(idReaderSem, 1);
-	//printf("%d: Reader -> %d:UNLOCKED\n", getTime(), getpid());
-	//fprintf(logFile, "%d: Reader -> %d:UNLOCKED\n", getTime(), getpid());
+	readLockSemaphore(idReaderSem, semvalue);
+	printStock(s, proc);
+	readUnlockSemaphore(idReaderSem, semvalue);
 }
 
 double randomPriceIncrement()
@@ -184,27 +187,28 @@ double randomPriceIncrement()
 
 void increaseStockPrice(struct stock *s, int proc)
 {
-	writeLockSemaphore(idReaderSem, 1, readerValues[1]);
-	//printf("%d: Writer -> %d:LOCKED\n", getTime(), getpid());
-	//fprintf(logFile, "%d: Writer -> %d:LOCKED\n", getTime(), getpid());
+	int semvalue = s -> semvalue;
 	double priceIncrement = randomPriceIncrement();	
+
+	writeLockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
 
 	s -> value = (s -> value) + priceIncrement;
 
 	char name = s -> name;
 	double value = s -> value;
 
-	writeUnlockSemaphore(idReaderSem, 1, readerValues[1]);
-	//printf("%d: Writer -> %d:UNLOCKED\n", getTime(), getpid());
-	//fprintf(logFile, "%d: Writer -> %d:UNLOCKED\n", getTime(), getpid());
 	printf("%d: Stock %c: W%d: %0.2f\n", getTime(), name, proc, value);
-	fprintf(logFile, "%d: Stock %c: W%d: %0.2f\n", getTime(), name, proc, value);
+
+	writeUnlockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
 }
 
 time_t getTime()
 {
 	time_t t;
 	t = time(NULL);
+
+	// struct timeb t;
+	// ftime(&t);
 
 	return t;
 }
@@ -225,10 +229,6 @@ void cleanup()
 
 	shmdt(stockE);
 	shmctl(shmE,IPC_RMID,0);
-
-	// Logging Clean-Up
-	remove("nolockingtraces2.log");
-	logFile = fopen("nolockingtraces2.log", "a");
 }
 
 void catch(int snum)

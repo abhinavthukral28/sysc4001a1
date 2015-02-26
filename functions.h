@@ -13,6 +13,7 @@ struct stock
 {
 	char name;
 	double value;
+	int semvalue;
 };
 int allocateSharedMemory(int n);
 void* mapSharedMemory(int id);
