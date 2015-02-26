@@ -18,11 +18,18 @@ int allocateSharedMemory(int n);
 void* mapSharedMemory(int id);
 int createSemaphores(int n, short* vals);
 void deleteSemaphores(int id);
-void lockSemaphore(int id, int i);
-void unlockSemaphore(int id, int i);
-void cleanup();
-void printStock(struct stock *s);
+void readLockSemaphore(int id, int i);
+void readUnlockSemaphore(int id, int i);
+void writeLockSemaphore(int id, int i, int value);
+void writeUnlockSemaphore(int id, int i, int value);
+
+void printStock(struct stock *s, int proc);
+void readStock(struct stock *s, int proc);
+void increaseStockPrice(struct stock *s, int proc);
+double randomPriceIncrement();
+
 void createReaders();
 void createWriters();
-double randomPriceIncrement();
-void increaseStockPrice(struct stock *s, double v);
+
+time_t getTime();
+void cleanup();

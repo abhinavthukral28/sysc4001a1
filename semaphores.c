@@ -29,7 +29,7 @@ void deleteSemaphores(int id)
         exit(EXIT_FAILURE);
     }
 }
-void lockSemaphore(int id, int i)
+void readLockSemaphore(int id, int i)
 {
     struct sembuf sb;
     sb.sem_num = i;
@@ -38,11 +38,29 @@ void lockSemaphore(int id, int i)
     semop(id, &sb, 1);
 }
 
-void unlockSemaphore(int id, int i)
+void readUnlockSemaphore(int id, int i)
 {
     struct sembuf sb;
     sb.sem_num = i;
     sb.sem_op = 1;
+    sb.sem_flg = SEM_UNDO;
+    semop(id, &sb, 1);
+}
+
+void writeLockSemaphore(int id, int i, int value)
+{
+    struct sembuf sb;
+    sb.sem_num = i;
+    sb.sem_op = -1 * value;
+    sb.sem_flg = SEM_UNDO;
+    semop(id, &sb, 1);
+}
+
+void writeUnlockSemaphore(int id, int i, int value)
+{
+    struct sembuf sb;
+    sb.sem_num = i;
+    sb.sem_op = value;
     sb.sem_flg = SEM_UNDO;
     semop(id, &sb, 1);
 }
