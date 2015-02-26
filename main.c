@@ -30,43 +30,46 @@ int main(int argc, char const *argv[])
 	shmA = allocateSharedMemory(sizeof(struct stock));
 	stockA = mapSharedMemory(shmA);
 	stockA -> name = 'A';
-	stockA -> value = 0;
+	stockA -> value = 0.50;
 	printStock(stockA);
 
 	shmB = allocateSharedMemory(sizeof(struct stock));
 	stockB = mapSharedMemory(shmB);
 	stockB -> name = 'B';
-	stockB -> value = 0;
+	stockB -> value = 1.00;
 	printStock(stockB);
 
 	shmC = allocateSharedMemory(sizeof(struct stock));
 	stockC = mapSharedMemory(shmC);
 	stockC -> name = 'C';
-	stockC -> value = 0;
+	stockC -> value = 0.75;
 	printStock(stockC);
 
 	shmD = allocateSharedMemory(sizeof(struct stock));
 	stockD = mapSharedMemory(shmD);
 	stockD -> name = 'D';
-	stockD -> value = 0;
+	stockD -> value = 2.25;
 	printStock(stockD);
 
 	shmE = allocateSharedMemory(sizeof(struct stock));
 	stockE = mapSharedMemory(shmE);
 	stockE -> name = 'E';
-	stockE -> value = 0;
+	stockE -> value = 1.50;
 	printStock(stockE);
 
+	// Initializing signal handler for detecting child termination
 	void catch(int);
-	signal(SIGCHLD, catch);  // Detects child termination
+	signal(SIGCHLD, catch);
 	
+	// Spawning writer and reader processes
 	createWriters();
 	createReaders();
 	
+	// Main process (parent) does not exit until all children are done
 	while(numChildrenAlive != 0)
 	{
-		printf("# of Children Alive: %d\n", numChildrenAlive);
-		printf("Parent: Sleeping for 5 second...\n");
+		//printf("# of Children Alive: %d\n", numChildrenAlive);
+		//printf("Parent: Sleeping for 5 second...\n");
 		sleep(5);
 	}
 
@@ -77,7 +80,30 @@ void printStock(struct stock *s)
 {
 	char name = s -> name;
 	double value = s -> value;
-	printf("Stock %c: %lf\n", name, value);
+	printf("Stock %c: %0.2f\n", name, value);
+}
+
+double randomPriceIncrement()
+{
+	/* Random Generator for price increment */
+	srand(getpid());
+	int rand_num;
+	double d;
+
+	rand_num = rand() % 5 + 1;
+	d = (double) rand_num / (double) 100;
+	printf("%0.2f\n", d);
+
+	return d;
+}
+
+void increaseStockPrice(struct stock *s, double v)
+{
+	s -> value = (s -> value) + v;
+
+	char name = s -> name;
+	double value = s -> value;
+	printf("Stock %c: %0.2f\n", name, value);
 }
 
 void cleanup()
@@ -98,62 +124,63 @@ void cleanup()
 	shmctl(shmE,IPC_RMID,0);
 }
 
-createWriters()
+void createWriters()
 {
 	int i, pid;
 
-	for (i = 1; i <= 4; i++)
+	for (i = 0; i < 4; i++)
 	{
-		if ((pid = fork()) != 0)
+		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
-			printf("Created reader: P%d -> %d\n", numChildrenAlive, pid);
-			/* parent process pid != 0 */
-			/* wait for child to terminate */
+			printf("Created writer: P%d -> %d\n", numChildrenAlive, pid);
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
-		{
 			perror("Could not fork a writer process.\n");
-		}
-		else
-		{
-			/* child process pid = 0 */
-			sleep(8);
-			printf("Exited %d\n", getpid());
+		else /* Writer process, pid = 0 */
+		{	
+			double priceIncrement = randomPriceIncrement();
+			increaseStockPrice(stockE, priceIncrement);
+
+			sleep(10);
+			printf("Exited Writer P%d -> %d\n", numChildrenAlive, getpid());
 			exit(1);
 
 		}
+		sleep(1);
 	}
 }
 
-createReaders()
+void createReaders()
 {
 	int i, pid;
 
-	for (i = 1; i <= 3; i++)
+	for (i = 0; i < 3; i++)
 	{
-		if ((pid = fork()) != 0)
+		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
 			printf("Created reader: P%d -> %d\n", numChildrenAlive, pid);
-			/* parent process pid != 0 */
-			/* wait for child to terminate */
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
-		{
 			perror("Could not fork a reader process.\n");
-		}
-		else
+		else /* Reader process, pid = 0 */
 		{
-			/* child process pid = 0 */
-			sleep(10);
-			printf("Exited %d\n", getpid());
+			int j;
+
+			for (j = 0; j < 1; j++)
+			{
+				sleep(10);
+			}
+
+			printf("Exited Reader P%d -> %d\n", numChildrenAlive, getpid());
 			exit(1);
 		}
 	}
 }
 
-void catch(int snum) {
+void catch(int snum)
+{
 	int pid;
 	int status;
 

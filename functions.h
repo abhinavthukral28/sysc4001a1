@@ -22,3 +22,7 @@ void lockSemaphore(int id, int i);
 void unlockSemaphore(int id, int i);
 void cleanup();
 void printStock(struct stock *s);
+void createReaders();
+void createWriters();
+double randomPriceIncrement();
+void increaseStockPrice(struct stock *s, double v);
