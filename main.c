@@ -22,7 +22,6 @@ int shmE;
 
 // Total Number of Active Child Processes
 int numChildrenAlive = 0;
-int childProcesses[7]; 	// Used to store pids of child processes
 struct stock *readerStockList[3][3];
 struct stock *writerStockList[4][3];
 
@@ -79,15 +78,22 @@ int main(int argc, char const *argv[])
 	stockE -> semvalue = 4;
 	printStock(stockE);
 
-	printf("\n===============================\n\t SIMULUATION\n===============================\n\n");
+	printf("\n=================================\n\t  SIMULUATION\n=================================\n\n");
 
 	// Creating Semaphores
 	idReaderSem = createSemaphores(5, readerValues);
 	activeProcessSem = createSemaphores(1, activeProcessValues);
 
 	// Initializing signal handler for detecting child termination
-	void catch(int);
-	signal(SIGCHLD, catch);
+	struct sigaction action;
+	memset(&action, '\0', sizeof(action));
+	action.sa_handler = childProcessHandler;
+
+	if (sigaction(SIGCHLD, &action, 0))
+	{
+		perror("sigaction");
+		return 1;
+	}
 	
 	// Spawning Writer/Reader Processes
 	createWriters();
@@ -99,7 +105,7 @@ int main(int argc, char const *argv[])
 		sleep(1);
 	}
 
-	printf("\n===============================\n\t\tEND\n===============================\n\n");
+	printf("\n=================================\n\t\tEND\n=================================\n\n");
 
 	// Destroy Semaphores
 	deleteSemaphores(idReaderSem);
@@ -118,6 +124,7 @@ void createWriters()
 
 	int i, j, k, pid, retvalue;
 
+	// Creates 4 Writer Processes
 	for (i = 0; i < 4; i++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
@@ -155,7 +162,6 @@ void createWriters()
 				}
 				//randomSleep();
 			}
-			randomSleep();
 			printf("\t\t\t\tExited Writer W%d -> %d\n", i, getpid());
 			exit(1);
 		}
@@ -171,6 +177,7 @@ void createReaders()
 
 	int i, j, k, pid, retvalue;
 
+	// Creates 4 Reader Processes
 	for (i = 0; i < 3; i++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
@@ -208,7 +215,6 @@ void createReaders()
 				}
 				//randomSleep();
 			}
-			randomSleep();
 			printf("\t\t\t\tExited Reader R%d -> %d\n", i, getpid());
 			exit(1);
 		}
@@ -246,13 +252,11 @@ void readStock(struct stock *s, int proc)
 	int semvalue = s -> semvalue;
 
 	readLockSemaphore(idReaderSem, semvalue);
-	
-	char name = s -> name;
-	double value = s -> value;
-
-	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), name, proc, value);
+	//printf("%.3f: Stock %c: R%d: LOCKED\n", getTime(), s -> name, proc);
+	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), s -> name, proc, s -> value);
 	
 	readUnlockSemaphore(idReaderSem, semvalue);
+	//printf("%.3f: Stock %c: R%d: UNLOCKED\n", getTime(), s -> name, proc);
 }
 
 double randomPriceIncrement()
@@ -274,11 +278,12 @@ void increaseStockPrice(struct stock *s, int proc)
 	double priceIncrement = randomPriceIncrement();	
 
 	writeLockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
-
+	//printf("%.3f: Stock %c: W%d: LOCKED\n", getTime(), s->name, proc);
 	s -> value = (s -> value) + priceIncrement;
 	printf("%.3f: Stock %c: W%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
 
 	writeUnlockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
+	//printf("%.3f: Stock %c: W%d: UNLOCKED\n", getTime(), s->name, proc);
 }
 
 double getTime()
@@ -316,17 +321,16 @@ void cleanup()
 	shmctl(shmE,IPC_RMID,0);
 }
 
-void catch(int snum)
+static void childProcessHandler (int sig)
 {
 	int pid;
 	int status;
 
 	pid = wait(&status);
-	
+
 	readLockSemaphore(activeProcessSem, 0);
 	//printf("Parent: Child Process pid=%d (%d).\n", pid, WEXITSTATUS(status));
 	numChildrenAlive--;
-	signal(SIGCHLD, catch);
 
 	readUnlockSemaphore(activeProcessSem, 0);
 }

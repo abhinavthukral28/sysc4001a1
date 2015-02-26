@@ -49,3 +49,5 @@ void *writerJobThread(void* s);
 double getTime();
 void cleanup();
 void randomSleep();
+
+static void childProcessHandler (int sig);
