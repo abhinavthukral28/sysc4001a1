@@ -21,15 +21,25 @@ int shmE;
 
 // Total Number of Active Child Processes
 int numChildrenAlive = 0;
+int childProcesses[7]; 	// Used to store pids of child processes
 struct stock *readerStockList[3][3];
 struct stock *writerStockList[4][3];
+
 // Semaphores Set
 int idReaderSem;
+int activeProcessSem;
 short readerValues[] = { 1, 2, 1, 2, 1 };
+short activeProcessValues[] = { 1 };
+
+// Timing
+struct timeb starttime;
 
 int main(int argc, char const *argv[])
 {
 	cleanup();
+
+	// Get Program Start Time
+	ftime(&starttime);
 
 	// Setup Shared Memory for Stocks
 	shmA = allocateSharedMemory(sizeof(struct stock));
@@ -37,38 +47,39 @@ int main(int argc, char const *argv[])
 	stockA -> name = 'A';
 	stockA -> value = 0.50;
 	stockA -> semvalue = 0;
-	printStock(stockA, 0);
+	printStock(stockA);
 
 	shmB = allocateSharedMemory(sizeof(struct stock));
 	stockB = mapSharedMemory(shmB);
 	stockB -> name = 'B';
 	stockB -> value = 1.00;
 	stockB -> semvalue = 1;
-	printStock(stockB, 0);
+	printStock(stockB);
 
 	shmC = allocateSharedMemory(sizeof(struct stock));
 	stockC = mapSharedMemory(shmC);
 	stockC -> name = 'C';
 	stockC -> value = 0.75;
 	stockC -> semvalue = 2;
-	printStock(stockC, 0);
+	printStock(stockC);
 
 	shmD = allocateSharedMemory(sizeof(struct stock));
 	stockD = mapSharedMemory(shmD);
 	stockD -> name = 'D';
 	stockD -> value = 2.25;
 	stockD -> semvalue = 3;
-	printStock(stockD, 0);
+	printStock(stockD);
 
 	shmE = allocateSharedMemory(sizeof(struct stock));
 	stockE = mapSharedMemory(shmE);
 	stockE -> name = 'E';
 	stockE -> value = 1.50;
 	stockE -> semvalue = 4;
-	printStock(stockE, 0);
+	printStock(stockE);
 
 	// Creating Semaphores
 	idReaderSem = createSemaphores(5, readerValues);
+	activeProcessSem = createSemaphores(1, activeProcessValues);
 
 	// Initializing signal handler for detecting child termination
 	void catch(int);
@@ -78,23 +89,27 @@ int main(int argc, char const *argv[])
 	createWriters();
 	createReaders();
 	
-	// Main process (parent) does not exit until all children are done
+	// Main procedss (parent) does not exit until all children are done
 	while(numChildrenAlive != 0)
 	{
-		//printf("# of Children Alive: %d\n", numChildrenAlive);
-		//printf("Parent: Sleeping for 1 second...\n");
 		sleep(1);
 	}
 
 	// Destroy Semaphores
 	deleteSemaphores(idReaderSem);
+	deleteSemaphores(activeProcessSem);
 
 	return 0;
 }
 
 void createWriters()
 {
-	struct stock *writerStockList[4][3] = { { stockA, stockB }, { stockA, stockB, stockC }, { stockC, stockD, stockE }, { stockD, stockE } };
+	struct stock *writerStockList[4][3] = {
+		{ stockA, stockB },
+		{ stockA, stockB, stockC },
+		{ stockC, stockD, stockE },
+		{ stockD, stockE } };
+
 	int i, j, k, pid;
 
 	for (i = 0; i < 4; i++)
@@ -108,16 +123,17 @@ void createWriters()
 			perror("Could not fork a writer process.\n");
 		else /* Writer process, pid = 0 */
 		{	
-			for (j = 0; j < 10; j++)
+			for (j = 0; j < 50; j++)
 			{
+				sleep(10);
+
 				for (k = 0; k < 3; k ++)
 				{
 					if (writerStockList[i][k] != NULL)
 						increaseStockPrice(writerStockList[i][k], i);
 				}
-				usleep(1800);
 			}
-
+			randomSleep();
 			printf("\t\t\t\tExited Writer W%d -> %d\n", i, getpid());
 			exit(1);
 		}
@@ -126,7 +142,11 @@ void createWriters()
 
 void createReaders()
 {
-	struct stock *readerStockList[3][3] = { { stockA, stockB }, { stockB, stockC, stockD }, { stockD, stockE } };
+	struct stock *readerStockList[3][3] = {
+		{ stockA, stockB },
+		{ stockB, stockC, stockD },
+		{ stockD, stockE } };
+
 	int i, j, k, pid;
 
 	for (i = 0; i < 3; i++)
@@ -140,27 +160,29 @@ void createReaders()
 			perror("Could not fork a reader process.\n");
 		else /* Reader process, pid = 0 */
 		{
-			for (j = 0; j < 10; j++)
+			for (j = 0; j < 50; j++)
 			{
+				sleep(10);
+
 				for (k = 0; k < 3; k ++)
 				{
 					if (readerStockList[i][k] != NULL)
 						readStock(readerStockList[i][k], i);
 				}
-				usleep(2000);
 			}
+			randomSleep();
 			printf("\t\t\t\tExited Reader R%d -> %d\n", i, getpid());
 			exit(1);
 		}
 	}
 }
 
-void printStock(struct stock *s, int proc)
+void printStock(struct stock *s)
 {
 	char name = s -> name;
 	double value = s -> value;
 
-	printf("%d: Stock %c: R%d: %0.2f\n", getTime(), name, proc, value);
+	printf("%.3f: Stock %c: %0.2f\n", getTime(), name, value);
 }
 
 void readStock(struct stock *s, int proc)
@@ -168,14 +190,16 @@ void readStock(struct stock *s, int proc)
 	int semvalue = s -> semvalue;
 
 	readLockSemaphore(idReaderSem, semvalue);
-	printStock(s, proc);
+
+	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
+	
 	readUnlockSemaphore(idReaderSem, semvalue);
 }
 
 double randomPriceIncrement()
 {
 	/* Random Generator for price increment */
-	srand(getpid());
+	srand(time(NULL));
 	int rand_num;
 	double d;
 
@@ -193,24 +217,26 @@ void increaseStockPrice(struct stock *s, int proc)
 	writeLockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
 
 	s -> value = (s -> value) + priceIncrement;
-
-	char name = s -> name;
-	double value = s -> value;
-
-	printf("%d: Stock %c: W%d: %0.2f\n", getTime(), name, proc, value);
+	printf("%.3f: Stock %c: W%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
 
 	writeUnlockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
 }
 
-time_t getTime()
+double getTime()
 {
-	time_t t;
-	t = time(NULL);
+	struct timeb curtime;
+	ftime(&curtime);
 
-	// struct timeb t;
-	// ftime(&t);
+	double t = (curtime.time - starttime.time) + (double)((curtime.millitm - starttime.millitm) / 1000.0);
 
 	return t;
+}
+
+void randomSleep()
+{
+	srand(getpid());
+	int rand_num = rand() % 3000000 + 1000000;
+	usleep(rand_num);
 }
 
 void cleanup()
@@ -237,9 +263,10 @@ void catch(int snum)
 	int status;
 
 	pid = wait(&status);
+	
+	readLockSemaphore(activeProcessSem, 0);
 	//printf("Parent: Child Process pid=%d (%d).\n", pid, WEXITSTATUS(status));
-	
 	numChildrenAlive--;
-	
 	signal(SIGCHLD, catch);
+	readUnlockSemaphore(activeProcessSem, 0);
 }
