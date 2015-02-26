@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/timeb.h>
+#include <pthread.h>
 
 //Pointers to Stocks
 struct stock *stockA;
@@ -28,6 +29,7 @@ struct stock *writerStockList[4][3];
 // Semaphores Set
 int idReaderSem;
 int activeProcessSem;
+
 short readerValues[] = { 1, 2, 1, 2, 1 };
 short activeProcessValues[] = { 1 };
 
@@ -77,6 +79,8 @@ int main(int argc, char const *argv[])
 	stockE -> semvalue = 4;
 	printStock(stockE);
 
+	printf("\n===============================\n\t SIMULUATION\n===============================\n\n");
+
 	// Creating Semaphores
 	idReaderSem = createSemaphores(5, readerValues);
 	activeProcessSem = createSemaphores(1, activeProcessValues);
@@ -95,6 +99,8 @@ int main(int argc, char const *argv[])
 		sleep(1);
 	}
 
+	printf("\n===============================\n\t\tEND\n===============================\n\n");
+
 	// Destroy Semaphores
 	deleteSemaphores(idReaderSem);
 	deleteSemaphores(activeProcessSem);
@@ -110,7 +116,7 @@ void createWriters()
 		{ stockC, stockD, stockE },
 		{ stockD, stockE } };
 
-	int i, j, k, pid;
+	int i, j, k, pid, retvalue;
 
 	for (i = 0; i < 4; i++)
 	{
@@ -123,15 +129,31 @@ void createWriters()
 			perror("Could not fork a writer process.\n");
 		else /* Writer process, pid = 0 */
 		{	
-			for (j = 0; j < 50; j++)
+			// Loop 10 times for Simulation Purpose
+			for (j = 0; j < 10; j++)
 			{
 				sleep(10);
+				pthread_t threads[3];
 
+				// Update Stocks Accessible by Current Writer Process
 				for (k = 0; k < 3; k ++)
 				{
 					if (writerStockList[i][k] != NULL)
-						increaseStockPrice(writerStockList[i][k], i);
+					{
+						struct threadParameters *tP = malloc(sizeof(struct threadParameters));
+						tP -> stk = writerStockList[i][k];
+						tP -> proc = i;
+
+						// Create Job Thread to Perform Stock Update
+						retvalue = pthread_create(&threads[k], NULL, writerJobThread, tP);
+
+						if (retvalue)
+							printf("ERROR: thread not created. Code -> %d\n", retvalue);
+
+						pthread_join(threads[k], NULL);
+					}
 				}
+				//randomSleep();
 			}
 			randomSleep();
 			printf("\t\t\t\tExited Writer W%d -> %d\n", i, getpid());
@@ -147,7 +169,7 @@ void createReaders()
 		{ stockB, stockC, stockD },
 		{ stockD, stockE } };
 
-	int i, j, k, pid;
+	int i, j, k, pid, retvalue;
 
 	for (i = 0; i < 3; i++)
 	{
@@ -160,21 +182,55 @@ void createReaders()
 			perror("Could not fork a reader process.\n");
 		else /* Reader process, pid = 0 */
 		{
-			for (j = 0; j < 50; j++)
+			// Loop 10 times for Simulation Purpose
+			for (j = 0; j < 10; j++)
 			{
 				sleep(10);
+				pthread_t threads[3];
 
+				// Read Stocks Accessible by Current Reader Process
 				for (k = 0; k < 3; k ++)
 				{
 					if (readerStockList[i][k] != NULL)
-						readStock(readerStockList[i][k], i);
+					{
+						struct threadParameters *tP = malloc(sizeof(struct threadParameters));
+						tP -> stk = readerStockList[i][k];
+						tP -> proc = i;
+					
+						// Create Job Thread to Perform Stock Read
+						retvalue = pthread_create(&threads[k], NULL, readerJobThread, tP);
+
+						if (retvalue)
+							printf("ERROR: thread not created. Code -> %d\n", retvalue);
+
+						pthread_join(threads[k], NULL);
+					}
 				}
+				//randomSleep();
 			}
 			randomSleep();
 			printf("\t\t\t\tExited Reader R%d -> %d\n", i, getpid());
 			exit(1);
 		}
 	}
+}
+
+void *readerJobThread(void* s)
+{
+	struct threadParameters* tP = (struct threadParameters*) s;
+
+	readStock((tP -> stk), (tP -> proc));
+
+	pthread_exit(NULL);
+}
+
+void *writerJobThread(void* s)
+{
+	struct threadParameters* tP = (struct threadParameters*) s;
+
+	increaseStockPrice((tP -> stk), (tP -> proc));
+
+	pthread_exit(NULL);
 }
 
 void printStock(struct stock *s)
@@ -190,8 +246,11 @@ void readStock(struct stock *s, int proc)
 	int semvalue = s -> semvalue;
 
 	readLockSemaphore(idReaderSem, semvalue);
+	
+	char name = s -> name;
+	double value = s -> value;
 
-	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
+	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), name, proc, value);
 	
 	readUnlockSemaphore(idReaderSem, semvalue);
 }
@@ -268,5 +327,6 @@ void catch(int snum)
 	//printf("Parent: Child Process pid=%d (%d).\n", pid, WEXITSTATUS(status));
 	numChildrenAlive--;
 	signal(SIGCHLD, catch);
+
 	readUnlockSemaphore(activeProcessSem, 0);
 }

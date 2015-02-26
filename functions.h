@@ -43,8 +43,8 @@ double randomPriceIncrement();
 void createReaders();
 void createWriters();
 
-void *readerJobThread(void *s);
-void *writerJobThread(void *s);
+void *readerJobThread(void* s);
+void *writerJobThread(void* s);
 
 double getTime();
 void cleanup();
