@@ -78,8 +78,6 @@ int main(int argc, char const *argv[])
 	stockE -> semvalue = 4;
 	printStock(stockE);
 
-	printf("\n=================================\n\t  SIMULUATION\n=================================\n\n");
-
 	// Creating Semaphores
 	idReaderSem = createSemaphores(5, readerValues);
 	activeProcessSem = createSemaphores(1, activeProcessValues);
@@ -95,6 +93,8 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 	
+	printf("\n=================================\n\t  SIMULUATION\n=================================\n\n");
+
 	// Spawning Writer/Reader Processes
 	createWriters();
 	createReaders();
@@ -116,20 +116,14 @@ int main(int argc, char const *argv[])
 
 void createWriters()
 {
-	struct stock *writerStockList[4][3] = {
-		{ stockA, stockB },
-		{ stockA, stockB, stockC },
-		{ stockC, stockD, stockE },
-		{ stockD, stockE } };
-
-	int i, j, k, pid, retvalue;
+	int writerProcessId, simCounter, writerStockListIndex, pid, retvalue;
 
 	// Creates 4 Writer Processes
-	for (i = 0; i < 4; i++)
+	for (writerProcessId = 0; writerProcessId < 4; writerProcessId++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
-			printf("\t\t\t\tCreated writer: W%d -> %d\n", i, pid);
+			//printf("\t\t\t\tCreated writer: W%d -> %d\n", writerProcessId, pid);
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
@@ -137,32 +131,12 @@ void createWriters()
 		else /* Writer process, pid = 0 */
 		{	
 			// Loop 10 times for Simulation Purpose
-			for (j = 0; j < 10; j++)
+			for (simCounter = 0; simCounter < 10; simCounter++)
 			{
 				sleep(10);
-				pthread_t threads[3];
-
-				// Update Stocks Accessible by Current Writer Process
-				for (k = 0; k < 3; k ++)
-				{
-					if (writerStockList[i][k] != NULL)
-					{
-						struct threadParameters *tP = malloc(sizeof(struct threadParameters));
-						tP -> stk = writerStockList[i][k];
-						tP -> proc = i;
-
-						// Create Job Thread to Perform Stock Update
-						retvalue = pthread_create(&threads[k], NULL, writerJobThread, tP);
-
-						if (retvalue)
-							printf("ERROR: thread not created. Code -> %d\n", retvalue);
-
-						pthread_join(threads[k], NULL);
-					}
-				}
-				//randomSleep();
+				writerFunction(writerProcessId);
 			}
-			printf("\t\t\t\tExited Writer W%d -> %d\n", i, getpid());
+			//printf("\t\t\t\tExited Writer W%d -> %d\n", writerProcessId, getpid());
 			exit(1);
 		}
 	}
@@ -170,19 +144,14 @@ void createWriters()
 
 void createReaders()
 {
-	struct stock *readerStockList[3][3] = {
-		{ stockA, stockB },
-		{ stockB, stockC, stockD },
-		{ stockD, stockE } };
-
-	int i, j, k, pid, retvalue;
+	int readerProcessId, simCounter, readerStockListIndex, pid, retvalue;
 
 	// Creates 4 Reader Processes
-	for (i = 0; i < 3; i++)
+	for (readerProcessId = 0; readerProcessId < 3; readerProcessId++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
-			printf("\t\t\t\tCreated reader: R%d -> %d\n", i, pid);
+			//printf("\t\t\t\tCreated reader: R%d -> %d\n", readerProcessId, pid);
 			numChildrenAlive++;
 		}
 		else if (pid == -1)
@@ -190,35 +159,78 @@ void createReaders()
 		else /* Reader process, pid = 0 */
 		{
 			// Loop 10 times for Simulation Purpose
-			for (j = 0; j < 10; j++)
+			for (simCounter = 0; simCounter < 10; simCounter++)
 			{
 				sleep(10);
-				pthread_t threads[3];
-
-				// Read Stocks Accessible by Current Reader Process
-				for (k = 0; k < 3; k ++)
-				{
-					if (readerStockList[i][k] != NULL)
-					{
-						struct threadParameters *tP = malloc(sizeof(struct threadParameters));
-						tP -> stk = readerStockList[i][k];
-						tP -> proc = i;
-					
-						// Create Job Thread to Perform Stock Read
-						retvalue = pthread_create(&threads[k], NULL, readerJobThread, tP);
-
-						if (retvalue)
-							printf("ERROR: thread not created. Code -> %d\n", retvalue);
-
-						pthread_join(threads[k], NULL);
-					}
-				}
-				//randomSleep();
+				readerFunction(readerProcessId);
 			}
-			printf("\t\t\t\tExited Reader R%d -> %d\n", i, getpid());
+			//printf("\t\t\t\tExited Reader R%d -> %d\n", readerProcessId, getpid());
 			exit(1);
 		}
 	}
+}
+
+void readerFunction(int readerProcessId)
+{
+	struct stock *readerStockList[3][3] = {
+		{ stockA, stockB },
+		{ stockB, stockC, stockD },
+		{ stockD, stockE } };
+
+	pthread_t threads[3];
+	int readerStockListIndex, retvalue;
+
+	// Read Stocks Accessible by Current Reader Process
+	for (readerStockListIndex = 0; readerStockListIndex < 3; readerStockListIndex ++)
+	{
+		if (readerStockList[readerProcessId][readerStockListIndex] != NULL)
+		{
+			struct threadParameters *tP = malloc(sizeof(struct threadParameters));
+			tP -> stk = readerStockList[readerProcessId][readerStockListIndex];
+			tP -> proc = readerProcessId;
+		
+			// Create Job Thread to Perform Stock Read
+			retvalue = pthread_create(&threads[readerStockListIndex], NULL, readerJobThread, tP);
+
+			if (retvalue)
+				printf("ERROR: thread not created. Code -> %d\n", retvalue);
+
+			pthread_join(threads[readerStockListIndex], NULL);
+		}
+	}
+	//randomSleep();
+}
+
+void writerFunction(int writerProcessId)
+{
+	struct stock *writerStockList[4][3] = {
+		{ stockA, stockB },
+		{ stockA, stockB, stockC },
+		{ stockC, stockD, stockE },
+		{ stockD, stockE } };
+
+	pthread_t threads[3];
+	int readerStockListIndex, retvalue;
+
+	// Update Stocks Accessible by Current Writer Process
+	for (writerStockListIndex = 0; writerStockListIndex < 3; writerStockListIndex++)
+	{
+		if (writerStockList[writerProcessId][writerStockListIndex] != NULL)
+		{
+			struct threadParameters *tP = malloc(sizeof(struct threadParameters));
+			tP -> stk = writerStockList[writerProcessId][writerStockListIndex];
+			tP -> proc = writerProcessId;
+
+			// Create Job Thread to Perform Stock Update
+			retvalue = pthread_create(&threads[writerStockListIndex], NULL, writerJobThread, tP);
+
+			if (retvalue)
+				printf("ERROR: thread not created. Code -> %d\n", retvalue);
+
+			pthread_join(threads[writerStockListIndex], NULL);
+		}
+	}
+	//randomSleep();
 }
 
 void *readerJobThread(void* s)

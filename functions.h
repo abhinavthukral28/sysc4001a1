@@ -28,6 +28,7 @@ struct threadParameters
 
 int allocateSharedMemory(int n);
 void* mapSharedMemory(int id);
+
 int createSemaphores(int n, short* vals);
 void deleteSemaphores(int id);
 void readLockSemaphore(int id, int i);
@@ -42,6 +43,8 @@ double randomPriceIncrement();
 
 void createReaders();
 void createWriters();
+void readerFunction(int readerProcessId);
+void writerFunction(int writerProcessId);
 
 void *readerJobThread(void* s);
 void *writerJobThread(void* s);
