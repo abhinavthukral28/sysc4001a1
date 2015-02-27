@@ -180,7 +180,7 @@ void readerFunction(int readerProcessId)
 	pthread_t threads[3];
 	int readerStockListIndex, retvalue;
 
-	// Read Stocks Accessible by Current Reader Process
+	// Read Stocks that are Accessible by Current Reader Process
 	for (readerStockListIndex = 0; readerStockListIndex < 3; readerStockListIndex ++)
 	{
 		if (readerStockList[readerProcessId][readerStockListIndex] != NULL)
@@ -210,9 +210,9 @@ void writerFunction(int writerProcessId)
 		{ stockD, stockE } };
 
 	pthread_t threads[3];
-	int readerStockListIndex, retvalue;
+	int writerStockListIndex, retvalue;
 
-	// Update Stocks Accessible by Current Writer Process
+	// Update Stocks that are Accessible by Current Writer Process
 	for (writerStockListIndex = 0; writerStockListIndex < 3; writerStockListIndex++)
 	{
 		if (writerStockList[writerProcessId][writerStockListIndex] != NULL)
@@ -264,11 +264,11 @@ void readStock(struct stock *s, int proc)
 	int semvalue = s -> semvalue;
 
 	readLockSemaphore(idReaderSem, semvalue);
-	//printf("%.3f: Stock %c: R%d: LOCKED\n", getTime(), s -> name, proc);
+	printf("%.3f: Stock %c: R%d: LOCKED\n", getTime(), s -> name, proc);
 	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), s -> name, proc, s -> value);
 	
 	readUnlockSemaphore(idReaderSem, semvalue);
-	//printf("%.3f: Stock %c: R%d: UNLOCKED\n", getTime(), s -> name, proc);
+	printf("%.3f: Stock %c: R%d: UNLOCKED\n", getTime(), s -> name, proc);
 }
 
 double randomPriceIncrement()
@@ -290,12 +290,12 @@ void increaseStockPrice(struct stock *s, int proc)
 	double priceIncrement = randomPriceIncrement();	
 
 	writeLockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
-	//printf("%.3f: Stock %c: W%d: LOCKED\n", getTime(), s->name, proc);
+	printf("%.3f: Stock %c: W%d: LOCKED\n", getTime(), s->name, proc);
 	s -> value = (s -> value) + priceIncrement;
 	printf("%.3f: Stock %c: W%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
 
 	writeUnlockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
-	//printf("%.3f: Stock %c: W%d: UNLOCKED\n", getTime(), s->name, proc);
+	printf("%.3f: Stock %c: W%d: UNLOCKED\n", getTime(), s->name, proc);
 }
 
 double getTime()
