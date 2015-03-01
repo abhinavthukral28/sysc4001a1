@@ -22,8 +22,6 @@ int shmE;
 
 // Total Number of Active Child Processes
 int numChildrenAlive = 0;
-struct stock *readerStockList[3][3];
-struct stock *writerStockList[4][3];
 
 // Semaphores Set
 int idReaderSem;
@@ -78,7 +76,7 @@ int main(int argc, char const *argv[])
 	stockE -> semvalue = 4;
 	printStock(stockE);
 
-	// Creating Semaphores
+	// Initializing Semaphores Sets
 	idReaderSem = createSemaphores(5, readerValues);
 	activeProcessSem = createSemaphores(1, activeProcessValues);
 
@@ -99,7 +97,7 @@ int main(int argc, char const *argv[])
 	createWriters();
 	createReaders();
 	
-	// Main procedss (parent) does not exit until all children are done
+	// Main process (parent) does not exit until all children are done
 	while(numChildrenAlive != 0)
 	{
 		sleep(1);
@@ -124,7 +122,9 @@ void createWriters()
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
 			//printf("\t\t\t\tCreated writer: W%d -> %d\n", writerProcessId, pid);
+			readLockSemaphore(activeProcessSem, 0);
 			numChildrenAlive++;
+			readUnlockSemaphore(activeProcessSem, 0);
 		}
 		else if (pid == -1)
 			perror("Could not fork a writer process.\n");
@@ -146,13 +146,15 @@ void createReaders()
 {
 	int readerProcessId, simCounter, readerStockListIndex, pid, retvalue;
 
-	// Creates 4 Reader Processes
+	// Creates 3 Reader Processes
 	for (readerProcessId = 0; readerProcessId < 3; readerProcessId++)
 	{
 		if ((pid = fork()) != 0) /* Main process, waits for children to terminate */
 		{
 			//printf("\t\t\t\tCreated reader: R%d -> %d\n", readerProcessId, pid);
+			readLockSemaphore(activeProcessSem, 0);
 			numChildrenAlive++;
+			readUnlockSemaphore(activeProcessSem, 0);
 		}
 		else if (pid == -1)
 			perror("Could not fork a reader process.\n");
@@ -264,11 +266,11 @@ void readStock(struct stock *s, int proc)
 	int semvalue = s -> semvalue;
 
 	readLockSemaphore(idReaderSem, semvalue);
-	printf("%.3f: Stock %c: R%d: LOCKED\n", getTime(), s -> name, proc);
+	//printf("%.3f: Stock %c: R%d: LOCKED\n", getTime(), s -> name, proc);
 	printf("%.3f: Stock %c: R%d: %0.2f\n", getTime(), s -> name, proc, s -> value);
 	
 	readUnlockSemaphore(idReaderSem, semvalue);
-	printf("%.3f: Stock %c: R%d: UNLOCKED\n", getTime(), s -> name, proc);
+	//printf("%.3f: Stock %c: R%d: UNLOCKED\n", getTime(), s -> name, proc);
 }
 
 double randomPriceIncrement()
@@ -290,12 +292,12 @@ void increaseStockPrice(struct stock *s, int proc)
 	double priceIncrement = randomPriceIncrement();	
 
 	writeLockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
-	printf("%.3f: Stock %c: W%d: LOCKED\n", getTime(), s->name, proc);
+	//printf("%.3f: Stock %c: W%d: LOCKED\n", getTime(), s->name, proc);
 	s -> value = (s -> value) + priceIncrement;
 	printf("%.3f: Stock %c: W%d: %0.2f\n", getTime(), (s -> name), proc, (s -> value));
 
 	writeUnlockSemaphore(idReaderSem, semvalue, readerValues[semvalue]);
-	printf("%.3f: Stock %c: W%d: UNLOCKED\n", getTime(), s->name, proc);
+	//printf("%.3f: Stock %c: W%d: UNLOCKED\n", getTime(), s->name, proc);
 }
 
 double getTime()
